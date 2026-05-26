@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1700</width>
+    <height>750</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>LALR(1)语法分析生成器</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout_main" stretch="1,3">
+    <item>
+     <widget class="QWidget" name="leftWidget" native="true">
+      <layout class="QVBoxLayout" name="verticalLayout_left">
+       <item>
+        <widget class="QLabel" name="syntaxLabel">
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>文法规则：</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTextEdit" name="grammarEdit">
+         <property name="font">
+          <font>
+           <pointsize>11</pointsize>
+          </font>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="sentenceWidget" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_sentence">
+          <item>
+           <widget class="QLabel" name="sentenceLabel">
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+            <property name="text">
+             <string>待分析句子：</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="sentenceEdit">
+            <property name="font">
+             <font>
+              <pointsize>11</pointsize>
+             </font>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QWidget" name="buttonWidget" native="true">
+         <layout class="QHBoxLayout" name="horizontalLayout_buttons">
+          <item>
+           <widget class="QPushButton" name="openButton">
+            <property name="text">
+             <string>打开文法文件</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="saveButton">
+            <property name="text">
+             <string>保存文法文件</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="analysisButton">
+            <property name="text">
+             <string>文法分析</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="sentenceButton">
+            <property name="text">
+             <string>分析句子</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="detailButton">
+            <property name="text">
+             <string>打开大窗口</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTextBrowser" name="textBrowser">
+         <property name="maximumSize">
+          <size>
+           <width>16777215</width>
+           <height>200</height>
+          </size>
+         </property>
+         <property name="html">
+          <string>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
+&lt;html&gt;&lt;body&gt;
+&lt;p&gt;&lt;b&gt;LALR(1)分析生成器使用说明:&lt;/b&gt;&lt;/p&gt;
+&lt;p&gt;1. 输入文法规则,符号之间用空格隔开,左侧非终结符后需有空格和 -&amp;gt; 符号&lt;/p&gt;
+&lt;p&gt;2. 用 # 表示空串,用 | 分隔同一非终结符的不同产生式&lt;/p&gt;
+&lt;p&gt;3. 第一个非终结符默认为文法开始符号&lt;/p&gt;
+&lt;p&gt;4. 点击"文法分析"生成各集合与DFA&lt;/p&gt;
+&lt;p&gt;5. 输入句子后点击"分析句子"查看分析过程&lt;/p&gt;
+&lt;p&gt;6. 点击"打开大窗口"可在新窗口查看当前页签的详细内容&lt;/p&gt;
+&lt;p style="color:green;"&gt;DFA表中: 绿色编号=初始状态(0), 红色编号=末状态&lt;/p&gt;
+&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_first_follow">
+       <attribute name="title">
+        <string>First与Follow集合</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="hl_ff">
+        <item>
+         <widget class="QWidget" name="firstContainer" native="true">
+          <layout class="QVBoxLayout" name="vl_first">
+           <item>
+            <widget class="QLabel" name="firstLabel">
+             <property name="font">
+              <font><pointsize>12</pointsize></font>
+             </property>
+             <property name="text">
+              <string>First集合</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="firstTableWidget"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="followContainer" native="true">
+          <layout class="QVBoxLayout" name="vl_follow">
+           <item>
+            <widget class="QLabel" name="followLabel">
+             <property name="font">
+              <font><pointsize>12</pointsize></font>
+             </property>
+             <property name="text">
+              <string>Follow集合</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="followTableWidget"/>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_lr0">
+       <attribute name="title">
+        <string>LR(0)DFA表格</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="vl_lr0">
+        <item>
+         <widget class="QLabel" name="lr0Label">
+          <property name="font">
+           <font><pointsize>12</pointsize></font>
+          </property>
+          <property name="text">
+           <string>LR(0)DFA表格</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="slr1ResultLabel">
+          <property name="font">
+           <font><pointsize>11</pointsize></font>
+          </property>
+          <property name="text">
+           <string></string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="lr0TableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_lr1">
+       <attribute name="title">
+        <string>LR(1)DFA表格</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="vl_lr1">
+        <item>
+         <widget class="QLabel" name="lr1Label">
+          <property name="font">
+           <font><pointsize>12</pointsize></font>
+          </property>
+          <property name="text">
+           <string>LR(1)DFA表格</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="lrTableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_lalr1">
+       <attribute name="title">
+        <string>LALR(1)DFA表格</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="vl_lalr1">
+        <item>
+         <widget class="QLabel" name="lalrLabel">
+          <property name="font">
+           <font><pointsize>12</pointsize></font>
+          </property>
+          <property name="text">
+           <string>LALR(1)DFA表格</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="lalrTableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_lalr1_table">
+       <attribute name="title">
+        <string>LALR(1)分析表</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="vl_lalr1_table">
+        <item>
+         <widget class="QLabel" name="lalrAnalysisLabel">
+          <property name="font">
+           <font><pointsize>12</pointsize></font>
+          </property>
+          <property name="text">
+           <string>LALR(1)分析表</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="lalrAnalysisTableWidget"/>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_sentence">
+       <attribute name="title">
+        <string>句子分析过程</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="vl_sentence">
+        <item>
+         <widget class="QLabel" name="resultLabel">
+          <property name="font">
+           <font><pointsize>12</pointsize></font>
+          </property>
+          <property name="text">
+           <string>句子分析过程表</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QTableWidget" name="resultTableWidget"/>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
