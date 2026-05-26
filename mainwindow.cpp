@@ -246,7 +246,6 @@ MainWindow::MainWindow(QWidget* parent)
         }
 
         // -------- 计算 FIRST 集合 --------
-        // -------- 计算 FIRST 集合 --------
         std::function<QSet<QString>(const QString&)> getFirst = [&](const QString& s) -> QSet<QString> {
             if (firstSet.contains(s) && !firstSet[s].isEmpty()) {
                 return firstSet[s];
@@ -990,10 +989,10 @@ QString MainWindow::checkSLR1(const LALR& lr0dfa)
     }
 
     if (conflicts.isEmpty()) {
-        return "<b style='color:green;'>该文法是 SLR(1) 文法 [YES!]</b>";
+        return "<b style='color:green;'>该文法是 SLR(1) 文法</b>";
     }
     else {
-        QString result = "<b style='color:red;'>该文法不是 SLR(1) 文法 [NO!]</b><br>原因:<br>";
+        QString result = "<b style='color:red;'>该文法不是 SLR(1) 文法</b><br>原因:<br>";
         for (const auto& c : conflicts) {
             result += "• " + c + "<br>";
         }
