@@ -13,6 +13,7 @@
 #include <QColor>
 #include <QStack>
 #include <QHeaderView>
+#include <QRegularExpression>
 #include <algorithm>
 #include <functional>
 
@@ -24,15 +25,29 @@ static void setDFAVerticalHeaders(QTableWidget* table, int totalRows)
     for (int i = 0; i < totalRows; i++) {
         auto* headerItem = new QTableWidgetItem(QString::number(i));
         if (i == 0) {
-            headerItem->setForeground(QColor(0, 160, 0)); // 绿色 = 起始状态
+            headerItem->setForeground(QColor(0, 160, 0));
         }
         else if (i == totalRows - 1) {
-            headerItem->setForeground(QColor(255, 0, 0));  // 红色 = 末状态
+            headerItem->setForeground(QColor(255, 0, 0));
         }
         table->setVerticalHeaderItem(i, headerItem);
     }
 }
 
+// ====================== 辅助：规范化文法行 ======================
+// 确保 -> 两侧都有空格，处理 "exp ->exp" / "E->E+T" 等情况
+static QString normalizeGrammarLine(const QString& line)
+{
+    QString result = line.trimmed();
+    // 将 -> 替换为带空格的版本，先用占位符避免重复处理
+    // 先处理 -> 使得两边有空格
+    result.replace("->", " -> ");
+    // 清理多余空格
+    result = result.simplified();
+    return result;
+}
+
+// ====================== 构造函数 ======================
 // ====================== 构造函数 ======================
 
 MainWindow::MainWindow(QWidget* parent)
@@ -43,7 +58,30 @@ MainWindow::MainWindow(QWidget* parent)
 {
     ui->setupUi(this);
     this->setWindowTitle("LALR(1)语法分析生成器");
-    this->showMaximized();
+    // 设置合适的窗口大小而非最大化
+    this->resize(1280, 720);
+
+    // ============ 使用说明按钮 ============
+    connect(ui->helpButton, &QPushButton::clicked, this, [this]() {
+        QMessageBox helpBox(this);
+        helpBox.setWindowTitle("LALR(1)分析生成器 - 使用说明");
+        helpBox.setTextFormat(Qt::RichText);
+        helpBox.setText(
+            "<h3>LALR(1)分析生成器使用说明</h3>"
+            "<p><b>1.</b> 输入文法规则，符号之间用空格隔开，左侧非终结符后跟 <code>-></code> 符号。</p>"
+            "<p>&nbsp;&nbsp;&nbsp;支持的写法：<code>E -> E + T</code> 或 <code>E->E+T</code> 或 <code>exp ->exp addop term</code></p>"
+            "<p><b>2.</b> 用 <code>#</code> 表示空串，用 <code>|</code> 分隔同一非终结符的不同产生式。</p>"
+            "<p><b>3.</b> 第一个非终结符默认为文法开始符号。</p>"
+            "<p><b>4.</b> 点击「文法分析」生成 First/Follow 集合、LR(0)/LR(1)/LALR(1) DFA 及分析表。</p>"
+            "<p><b>5.</b> 输入句子后点击「分析句子」查看分析过程。</p>"
+            "<p><b>6.</b> 点击右上角「打开大窗口」可在新窗口查看当前页签的详细内容。</p>"
+            "<hr>"
+            "<p style='color:green;'>DFA表中：<b>绿色编号</b> = 初始状态(0)，<b style='color:red;'>红色编号</b> = 末状态</p>"
+            "<p>Follow集合中的终结符 <code>$</code> 表示输入结束符。</p>"
+        );
+        helpBox.setStandardButtons(QMessageBox::Ok);
+        helpBox.exec();
+        });
 
     // ============ 打开文法文件 ============
     connect(ui->openButton, &QPushButton::clicked, this, [this]() {
@@ -79,10 +117,8 @@ MainWindow::MainWindow(QWidget* parent)
         if (!detailWindow) {
             detailWindow = new DetailWindow(this);
         }
-        // 同步当前所有表格
         syncAllTablesToDetail();
 
-        // 切换到当前页签对应的tab
         int idx = ui->tabWidget->currentIndex();
         QString tabName = ui->tabWidget->tabText(idx);
         detailWindow->switchToTab(tabName);
@@ -124,11 +160,20 @@ MainWindow::MainWindow(QWidget* parent)
             QMessageBox::warning(this, "提示", "请先输入文法规则!");
             return;
         }
-        QStringList grammarList = content.split("\n", Qt::SkipEmptyParts);
+        QStringList rawGrammarList = content.split("\n", Qt::SkipEmptyParts);
+
+        // -------- 预处理：规范化每一行 --------
+        QStringList grammarList;
+        for (const auto& line : rawGrammarList) {
+            QString normalized = normalizeGrammarLine(line);
+            if (!normalized.isEmpty()) {
+                grammarList.append(normalized);
+            }
+        }
 
         // -------- 获取非终结符 --------
         for (const auto& grammar : grammarList) {
-            QStringList wordList = grammar.trimmed().split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            QStringList wordList = grammar.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
             if (wordList.size() < 3 || wordList[1] != "->") {
                 QMessageBox::warning(this, "提示",
                     "文法格式错误! 要求: 非终结符 -> 产生式\n错误行: " + grammar);
@@ -143,7 +188,7 @@ MainWindow::MainWindow(QWidget* parent)
 
         // -------- 分词 --------
         for (const auto& grammar : grammarList) {
-            QStringList wordList = grammar.trimmed().split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+            QStringList wordList = grammar.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
             for (int i = 0; i < wordList.size(); i++) {
                 if (!nonFinalizers.contains(wordList[i]) && wordList[i] != "->") {
                     firstSet[wordList[i]].insert(wordList[i]);
@@ -201,6 +246,7 @@ MainWindow::MainWindow(QWidget* parent)
         }
 
         // -------- 计算 FIRST 集合 --------
+        // -------- 计算 FIRST 集合 --------
         std::function<QSet<QString>(const QString&)> getFirst = [&](const QString& s) -> QSet<QString> {
             if (firstSet.contains(s) && !firstSet[s].isEmpty()) {
                 return firstSet[s];
@@ -239,7 +285,6 @@ MainWindow::MainWindow(QWidget* parent)
                     for (int i = 0; i < g.size(); i++) {
                         if (!nonFinalizers.contains(g[i])) continue;
 
-                        // 计算 FIRST(g[i+1]...g[n])
                         int k = i + 1;
                         QSet<QString> tmpSet;
                         while (k < g.size()) {
@@ -253,7 +298,6 @@ MainWindow::MainWindow(QWidget* parent)
                         }
                         bool canBeEmpty = (k == g.size());
 
-                        // 添加 FIRST(beta) - {#} 到 FOLLOW(g[i])
                         QSet<QString> toAdd = tmpSet;
                         toAdd.subtract(followSet[g[i]]);
                         if (!toAdd.isEmpty()) {
@@ -261,7 +305,6 @@ MainWindow::MainWindow(QWidget* parent)
                             changed = true;
                         }
 
-                        // 如果 beta =>* # , 添加 FOLLOW(key) 到 FOLLOW(g[i])
                         if (canBeEmpty) {
                             QSet<QString> toAdd2 = followSet[key];
                             toAdd2.subtract(followSet[g[i]]);
@@ -276,7 +319,6 @@ MainWindow::MainWindow(QWidget* parent)
         }
 
         // -------- 可视化 FIRST 和 FOLLOW 集合 --------
-                // FIRST
         ui->firstTableWidget->setColumnCount(2);
         ui->firstTableWidget->setHorizontalHeaderLabels(QStringList() << "非终结符" << "First集合");
         ui->firstTableWidget->horizontalHeader()->setStretchLastSection(true);
@@ -297,7 +339,6 @@ MainWindow::MainWindow(QWidget* parent)
             row++;
         }
 
-        // FOLLOW
         ui->followTableWidget->setColumnCount(2);
         ui->followTableWidget->setHorizontalHeaderLabels(QStringList() << "非终结符" << "Follow集合");
         ui->followTableWidget->horizontalHeader()->setStretchLastSection(true);
@@ -318,18 +359,15 @@ MainWindow::MainWindow(QWidget* parent)
             row++;
         }
 
-        // ======== 判断是否需要扩充文法 ========
+        // ======== 扩充文法 ========
         firstSet["$"] = QSet<QString>({ "$" });
-        QString augmentedStart = startString;
-        if (grammars[startString].size() > 1 || true) {
-            // 总是扩充文法以确保正确性
+        {
             QString newStart = startString + "_S";
             while (nonFinalizers.contains(newStart)) newStart += "_";
             grammars[newStart].insert(QStringList() << startString);
             nonFinalizers.prepend(newStart);
             firstSet[newStart] = firstSet[startString];
             followSet[newStart].insert("$");
-            augmentedStart = newStart;
             startString = newStart;
         }
 
@@ -362,7 +400,6 @@ MainWindow::MainWindow(QWidget* parent)
             ui->lr0TableWidget->setHorizontalHeaderLabels(lr0Columns);
             ui->lr0TableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-            // 反向映射
             QHash<int, LR0State> revLR0;
             for (auto it = lr0dfa.lr0StateHash.constBegin(); it != lr0dfa.lr0StateHash.constEnd(); ++it) {
                 revLR0[it.value()] = it.key();
@@ -371,7 +408,6 @@ MainWindow::MainWindow(QWidget* parent)
             setDFAVerticalHeaders(ui->lr0TableWidget, lr0dfa.lr0size);
 
             for (int i = 0; i < lr0dfa.lr0size; i++) {
-                // 构建状态描述用于垂直表头的tooltip
                 QString desc = "I" + QString::number(i) + ":\n";
                 if (revLR0.contains(i)) {
                     for (const auto& item : revLR0[i].st) {
@@ -443,7 +479,6 @@ MainWindow::MainWindow(QWidget* parent)
             setDFAVerticalHeaders(ui->lrTableWidget, lr1.size);
 
             for (int i = 0; i < lr1.size; i++) {
-                // 状态详细描述
                 QString desc = "I" + QString::number(i) + ":\n";
                 if (revLR1.contains(i)) {
                     for (const auto& item : revLR1[i].st) {
@@ -566,7 +601,7 @@ MainWindow::MainWindow(QWidget* parent)
             }
             if (hasReduceReduce) {
                 QMessageBox::warning(this, "警告",
-                    "该文法在 LALR(1) 中出现了规约-规约冲突,不是 LALR(1) 文法");
+                    "该文法在 LALR(1) 中出现了规约-规约冲突，不是 LALR(1) 文法");
                 return;
             }
             if (hasShiftReduce) {
@@ -627,7 +662,6 @@ MainWindow::MainWindow(QWidget* parent)
                     if (!isReduce) continue;
 
                     if (item.name == startString) {
-                        // 接受
                         for (const auto& next : item.next) {
                             if (next == "$" && headerHash.contains("$")) {
                                 LALR1TableItem ti;
@@ -642,7 +676,6 @@ MainWindow::MainWindow(QWidget* parent)
                     else {
                         for (const auto& next : item.next) {
                             if (!headerHash.contains(next)) continue;
-                            // 查找或添加规约规则
                             int ruleIdx = -1;
                             for (int r = 0; r < recursion.size(); r++) {
                                 if (Item::haveSameCore(recursion[r], item)) {
@@ -667,7 +700,7 @@ MainWindow::MainWindow(QWidget* parent)
                 }
             }
 
-            // 再填移进（移进优先覆盖规约 => 解决移进-规约冲突）
+            // 再填移进（移进优先覆盖规约）
             for (int i = 0; i < lalr1.size; i++) {
                 if (!lalr1.changeHash.contains(i)) continue;
                 for (auto it = lalr1.changeHash[i].constBegin(); it != lalr1.changeHash[i].constEnd(); ++it) {
@@ -675,7 +708,6 @@ MainWindow::MainWindow(QWidget* parent)
                     int target = it.value();
                     if (!headerHash.contains(sym)) continue;
                     if (nonFinalizers.contains(sym)) {
-                        // GOTO
                         LALR1TableItem ti;
                         ti.kind = 3;
                         ti.idx = target;
@@ -684,7 +716,6 @@ MainWindow::MainWindow(QWidget* parent)
                             new QTableWidgetItem(QString::number(target)));
                     }
                     else {
-                        // Shift
                         LALR1TableItem ti;
                         ti.kind = 1;
                         ti.idx = target;
@@ -696,14 +727,13 @@ MainWindow::MainWindow(QWidget* parent)
             }
 
             ui->lalrAnalysisTableWidget->resizeColumnsToContents();
-             }
+        }
 
-             canSentence = true;
+        canSentence = true;
 
-             QMessageBox::information(this, "提示", "文法分析完成!");
+        QMessageBox::information(this, "提示", "文法分析完成!");
 
-             // 同步到大窗口
-             syncAllTablesToDetail();
+        syncAllTablesToDetail();
     });
 
     // ============ 句子分析 ============
@@ -728,9 +758,7 @@ MainWindow::MainWindow(QWidget* parent)
             return;
         }
 
-        // 对句子进行分词（按字符拆分，每个字符是一个终结符）
         QStringList tokens;
-        // 简单分词：逐字符
         for (int i = 0; i < sentence.size(); i++) {
             tokens.append(QString(sentence[i]));
         }
@@ -744,7 +772,6 @@ MainWindow::MainWindow(QWidget* parent)
         analysisStack.push(firstItem);
         int step = 0;
 
-        // 打印函数
         auto printStep = [&]() {
             QString stateStr, symbolStr;
             for (const auto& ai : analysisStack) {
@@ -773,13 +800,13 @@ MainWindow::MainWindow(QWidget* parent)
 
         while (true) {
             if (analysisStack.empty()) {
-                QMessageBox::warning(this, "错误", "分析栈为空,句子 \"" + originalStr + "\" 不属于该文法");
+                QMessageBox::warning(this, "错误", "分析栈为空，句子 \"" + originalStr + "\" 不属于该文法");
                 syncAllTablesToDetail();
                 return;
             }
             AnalysisItem top = analysisStack.top();
             if (top.kind != 1) {
-                QMessageBox::warning(this, "错误", "分析栈顶不是状态,句子 \"" + originalStr + "\" 不属于该文法");
+                QMessageBox::warning(this, "错误", "分析栈顶不是状态，句子 \"" + originalStr + "\" 不属于该文法");
                 syncAllTablesToDetail();
                 return;
             }
@@ -787,7 +814,6 @@ MainWindow::MainWindow(QWidget* parent)
             QString currentToken = (tokenIdx < tokens.size()) ? tokens[tokenIdx] : "$";
 
             if (!LALR1_table[top.state].contains(currentToken)) {
-                // 尝试 # (空串规约)
                 if (LALR1_table[top.state].contains("#")) {
                     currentToken = "#";
                 }
@@ -802,7 +828,6 @@ MainWindow::MainWindow(QWidget* parent)
             LALR1TableItem action = LALR1_table[top.state][currentToken];
 
             if (action.kind == 1) {
-                // 移进
                 AnalysisItem chItem;
                 chItem.kind = 2;
                 chItem.ch = tokens[tokenIdx];
@@ -818,17 +843,15 @@ MainWindow::MainWindow(QWidget* parent)
 
             }
             else if (action.kind == 2) {
-                // 规约
                 Item ruleItem = recursion[action.idx];
                 int popCount = ruleItem.pos * 2;
-                // 如果是空产生式 # ，pos=0，不需要弹出
                 if (ruleItem.rule.size() == 1 && ruleItem.rule[0] == "#") {
                     popCount = 0;
                 }
 
                 for (int i = 0; i < popCount; i++) {
                     if (analysisStack.empty()) {
-                        QMessageBox::warning(this, "错误", "规约时栈为空,句子不匹配");
+                        QMessageBox::warning(this, "错误", "规约时栈为空，句子不匹配");
                         syncAllTablesToDetail();
                         return;
                     }
@@ -836,7 +859,7 @@ MainWindow::MainWindow(QWidget* parent)
                 }
 
                 if (analysisStack.empty()) {
-                    QMessageBox::warning(this, "错误", "规约后栈为空,句子不匹配");
+                    QMessageBox::warning(this, "错误", "规约后栈为空，句子不匹配");
                     syncAllTablesToDetail();
                     return;
                 }
@@ -869,7 +892,6 @@ MainWindow::MainWindow(QWidget* parent)
 
             }
             else if (action.kind == 4) {
-                // 接受
                 ui->resultTableWidget->resizeColumnsToContents();
                 QMessageBox::information(this, "分析完成",
                     "分析完毕! 句子 \"" + originalStr + "\" 属于该文法的句子。");
@@ -878,14 +900,13 @@ MainWindow::MainWindow(QWidget* parent)
 
             }
             else {
-                QMessageBox::warning(this, "错误", "遇到未知动作,句子不匹配");
+                QMessageBox::warning(this, "错误", "遇到未知动作，句子不匹配");
                 syncAllTablesToDetail();
                 return;
             }
 
-            // 安全保护
             if (step > 10000) {
-                QMessageBox::warning(this, "错误", "分析步骤超过10000步,可能存在死循环");
+                QMessageBox::warning(this, "错误", "分析步骤超过10000步，可能存在死循环");
                 syncAllTablesToDetail();
                 return;
             }
@@ -905,7 +926,6 @@ void MainWindow::syncAllTablesToDetail()
     if (!detailWindow->isVisible()) return;
 
     detailWindow->syncTable("First与Follow集合", ui->firstTableWidget);
-    // Follow 单独同步
     detailWindow->syncTable("Follow集合", ui->followTableWidget);
     detailWindow->syncTable("LR(0)DFA表格", ui->lr0TableWidget);
     detailWindow->syncTable("LR(1)DFA表格", ui->lrTableWidget);
@@ -914,11 +934,9 @@ void MainWindow::syncAllTablesToDetail()
     detailWindow->syncTable("句子分析过程", ui->resultTableWidget);
 }
 
-
 // ====================== 判断 SLR(1) ======================
 QString MainWindow::checkSLR1(const LALR& lr0dfa)
 {
-    // 遍历每个 LR(0) 状态，检查是否有冲突
     QHash<int, LR0State> revLR0;
     for (auto it = lr0dfa.lr0StateHash.constBegin(); it != lr0dfa.lr0StateHash.constEnd(); ++it) {
         revLR0[it.value()] = it.key();
@@ -930,7 +948,6 @@ QString MainWindow::checkSLR1(const LALR& lr0dfa)
         if (!revLR0.contains(i)) continue;
         const LR0State& state = revLR0[i];
 
-        // 找出规约项
         QList<LR0Item> reduceItems;
         QSet<QString> shiftSymbols;
 
@@ -945,9 +962,7 @@ QString MainWindow::checkSLR1(const LALR& lr0dfa)
             }
         }
 
-        // 检查规约-规约冲突
         if (reduceItems.size() > 1) {
-            // 检查 FOLLOW 集合是否有交集
             for (int a = 0; a < reduceItems.size() - 1; a++) {
                 for (int b = a + 1; b < reduceItems.size(); b++) {
                     QSet<QString> followA = followSet.value(reduceItems[a].name);
@@ -963,7 +978,6 @@ QString MainWindow::checkSLR1(const LALR& lr0dfa)
             }
         }
 
-        // 检查移进-规约冲突
         for (const auto& rItem : reduceItems) {
             QSet<QString> followR = followSet.value(rItem.name);
             QSet<QString> intersection = shiftSymbols;
