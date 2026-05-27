@@ -1,0 +1,68 @@
+# ===================== 编译输出 / 构建目录 =====================
+out/
+build/
+_debug/
+_release/
+x64/
+x86/
+Win32/
+[Bb]in/
+[Oo]bj/
+
+# ===================== CMake 生成文件 =====================
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+*.cmake
+!CMakePresets.json
+
+# ===================== Qt 自动生成文件 =====================
+moc_*.cpp
+ui_*.h
+qrc_*.cpp
+*.moc
+*.pro.user
+*.pro.user.*
+
+# ===================== Visual Studio =====================
+.vs/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+*.user
+*.sdf
+*.opensdf
+*.db
+*.opendb
+*.vc.db
+*.tlog/
+*.lastbuildstate
+*.idb
+*.pdb
+*.ilk
+
+# ===================== 编译产物 =====================
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.obj
+*.o
+*.exp
+*.res
+*.manifest
+*.aps
+
+# ===================== 其他 =====================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
