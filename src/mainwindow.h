@@ -8,7 +8,7 @@
 #include <QHash>
 
 #include "lalr.h"
-#include "detailwindow.h"
+#include "toastmanager.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -24,6 +24,9 @@ public:
 
 private:
     Ui::MainWindow* ui;
+
+    //消息提示界面
+    ToastManager* toastManager;
 
     // 起始符
     QString startString;
@@ -46,12 +49,6 @@ private:
 
     // 是否可以分析句子
     bool canSentence;
-
-    // 详细窗口
-    DetailWindow* detailWindow;
-
-    // 同步所有表格到详细窗口
-    void syncAllTablesToDetail();
 
     // 判断SLR(1)
     QString checkSLR1(const LALR& lr0dfa);

@@ -12,9 +12,11 @@ qt_add_executable(LALR
     src/mainwindow.h
     src/mainwindow.cpp
     src/mainwindow.ui
-    src/detailwindow.h
-    src/detailwindow.cpp
-    src/detailwindow.ui
+    src/toastmanager.h
+    src/toastmanager.cpp
+    src/settingsdialog.h
+    src/settingsdialog.cpp
+
     src/lalr.h
     src/lalr.cpp
 )
