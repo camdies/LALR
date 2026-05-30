@@ -137,6 +137,53 @@ MainWindow::MainWindow(QWidget* parent)
     //初始化消息通知
     toastManager = new ToastManager(this, this);
 
+    // ======== 初始化 DFA 图形控件 ========
+    lr0GraphWidget = new DFAGraphWidget(this);
+    ui->lr0GraphLayout->addWidget(lr0GraphWidget);
+
+    lr1GraphWidget = new DFAGraphWidget(this);
+    ui->lr1GraphLayout->addWidget(lr1GraphWidget);
+
+    lalr1GraphWidget = new DFAGraphWidget(this);
+    ui->lalr1GraphLayout->addWidget(lalr1GraphWidget);
+
+    // ======== 切换按钮逻辑 ========
+    connect(ui->lr0SwitchButton, &QPushButton::clicked, this, [this]() {
+        int cur = ui->lr0StackedWidget->currentIndex();
+        if (cur == 0) {
+            ui->lr0StackedWidget->setCurrentIndex(1);
+            ui->lr0SwitchButton->setText("切换到表格视图");
+        }
+        else {
+            ui->lr0StackedWidget->setCurrentIndex(0);
+            ui->lr0SwitchButton->setText("切换到图形视图");
+        }
+        });
+
+    connect(ui->lr1SwitchButton, &QPushButton::clicked, this, [this]() {
+        int cur = ui->lr1StackedWidget->currentIndex();
+        if (cur == 0) {
+            ui->lr1StackedWidget->setCurrentIndex(1);
+            ui->lr1SwitchButton->setText("切换到表格视图");
+        }
+        else {
+            ui->lr1StackedWidget->setCurrentIndex(0);
+            ui->lr1SwitchButton->setText("切换到图形视图");
+        }
+        });
+
+    connect(ui->lalr1SwitchButton, &QPushButton::clicked, this, [this]() {
+        int cur = ui->lalr1StackedWidget->currentIndex();
+        if (cur == 0) {
+            ui->lalr1StackedWidget->setCurrentIndex(1);
+            ui->lalr1SwitchButton->setText("切换到表格视图");
+        }
+        else {
+            ui->lalr1StackedWidget->setCurrentIndex(0);
+            ui->lalr1SwitchButton->setText("切换到图形视图");
+        }
+        });
+
     // ============ 使用说明按钮 ============
     connect(ui->helpButton, &QPushButton::clicked, this, [this]() {
         QMessageBox helpBox(this);
@@ -211,6 +258,18 @@ MainWindow::MainWindow(QWidget* parent)
         followSet.clear();
         recursion.clear();
         LALR1_table.clear();
+
+        lr0GraphWidget->clear();
+        lr1GraphWidget->clear();
+        lalr1GraphWidget->clear();
+        // 重置切换按钮状态
+        ui->lr0StackedWidget->setCurrentIndex(0);
+        ui->lr0SwitchButton->setText("切换到图形视图");
+        ui->lr1StackedWidget->setCurrentIndex(0);
+        ui->lr1SwitchButton->setText("切换到图形视图");
+        ui->lalr1StackedWidget->setCurrentIndex(0);
+        ui->lalr1SwitchButton->setText("切换到图形视图");
+
         canSentence = false;
 
         ui->firstTableWidget->clearContents();
@@ -595,6 +654,8 @@ MainWindow::MainWindow(QWidget* parent)
             }
             ui->lr0TableWidget->resizeRowsToContents();
             ui->lr0TableWidget->resizeColumnsToContents();
+            // 构建 LR(0) DFA 图形
+            buildLR0Graph(lr0dfa);
         }
 
         // ======== 判断 SLR(1) — 写入独立页签 ========
@@ -691,6 +752,8 @@ MainWindow::MainWindow(QWidget* parent)
             }
             ui->lrTableWidget->resizeRowsToContents();
             ui->lrTableWidget->resizeColumnsToContents();
+            // 构建 LR(1) DFA 图形
+            buildLR1Graph(lr1);
         }
 
         // ======== 构建 LALR(1) DFA ========
@@ -813,6 +876,8 @@ MainWindow::MainWindow(QWidget* parent)
             }
             ui->lalrTableWidget->resizeRowsToContents();
             ui->lalrTableWidget->resizeColumnsToContents();
+            // 构建 LALR(1) DFA 图形
+            buildLALR1Graph(lalr1);
         }
 
         // ======== 构建 LALR(1) 分析表 — 只有isLALR1==true时才构建 ========
@@ -1201,4 +1266,172 @@ QString MainWindow::checkSLR1(const LALR& lr0dfa)
         }
         return result;
     }
+}
+
+// ====================== 构建 LR(0) DFA 图形 ======================
+void MainWindow::buildLR0Graph(const LALR& lr0dfa)
+{
+    QHash<int, LR0State> revLR0;
+    for (auto it = lr0dfa.lr0StateHash.constBegin(); it != lr0dfa.lr0StateHash.constEnd(); ++it) {
+        revLR0[it.value()] = it.key();
+    }
+
+    QVector<DFANode> nodes;
+    QVector<DFAEdge> edges;
+
+    for (int i = 0; i < lr0dfa.lr0size; i++) {
+        DFANode node;
+        node.id = i;
+        node.isStart = (i == 0);
+        node.isAccept = false;
+
+        if (revLR0.contains(i)) {
+            const LR0State& state = revLR0[i];
+            for (const auto& item : state.st) {
+                QString desc = item.name + " → ";
+                for (int p = 0; p < item.rule.size(); p++) {
+                    if (p == item.pos) desc += "·";
+                    desc += item.rule[p] + " ";
+                }
+                if (item.pos == item.rule.size()) desc += "·";
+                desc = desc.trimmed();
+                node.items.append(desc);
+
+                // 判断是否为归约项目（接受状态）
+                bool isReduce = (item.pos == item.rule.size()) ||
+                    (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                if (isReduce) node.isAccept = true;
+            }
+        }
+        // 排序项目使显示稳定
+        std::sort(node.items.begin(), node.items.end());
+        nodes.append(node);
+    }
+
+    for (auto it = lr0dfa.lr0ChangeHash.constBegin(); it != lr0dfa.lr0ChangeHash.constEnd(); ++it) {
+        int fromId = it.key();
+        for (auto jt = it.value().constBegin(); jt != it.value().constEnd(); ++jt) {
+            DFAEdge edge;
+            edge.from = fromId;
+            edge.to = jt.value();
+            edge.symbol = jt.key();
+            edges.append(edge);
+        }
+    }
+
+    lr0GraphWidget->setDFA(nodes, edges);
+}
+
+// ====================== 构建 LR(1) DFA 图形 ======================
+void MainWindow::buildLR1Graph(const LALR& lr1)
+{
+    QHash<int, State> revLR1;
+    for (auto it = lr1.stateHash.constBegin(); it != lr1.stateHash.constEnd(); ++it) {
+        revLR1[it.value()] = it.key();
+    }
+
+    QVector<DFANode> nodes;
+    QVector<DFAEdge> edges;
+
+    for (int i = 0; i < lr1.size; i++) {
+        DFANode node;
+        node.id = i;
+        node.isStart = (i == 0);
+        node.isAccept = false;
+
+        if (revLR1.contains(i)) {
+            const State& state = revLR1[i];
+            for (const auto& item : state.st) {
+                QString desc = "[" + item.name + " → ";
+                for (int p = 0; p < item.rule.size(); p++) {
+                    if (p == item.pos) desc += "·";
+                    desc += item.rule[p] + " ";
+                }
+                if (item.pos == item.rule.size()) desc += "·";
+                desc = desc.trimmed();
+                desc += ", ";
+                QStringList lookaheads = item.next.values();
+                std::sort(lookaheads.begin(), lookaheads.end());
+                desc += lookaheads.join("/");
+                desc += "]";
+                node.items.append(desc);
+
+                bool isReduce = (item.pos == item.rule.size()) ||
+                    (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                if (isReduce) node.isAccept = true;
+            }
+        }
+        std::sort(node.items.begin(), node.items.end());
+        nodes.append(node);
+    }
+
+    for (auto it = lr1.changeHash.constBegin(); it != lr1.changeHash.constEnd(); ++it) {
+        int fromId = it.key();
+        for (auto jt = it.value().constBegin(); jt != it.value().constEnd(); ++jt) {
+            DFAEdge edge;
+            edge.from = fromId;
+            edge.to = jt.value();
+            edge.symbol = jt.key();
+            edges.append(edge);
+        }
+    }
+
+    lr1GraphWidget->setDFA(nodes, edges);
+}
+
+// ====================== 构建 LALR(1) DFA 图形 ======================
+void MainWindow::buildLALR1Graph(const LALR& lalr1)
+{
+    QHash<int, State> revLALR1;
+    for (auto it = lalr1.stateHash.constBegin(); it != lalr1.stateHash.constEnd(); ++it) {
+        revLALR1[it.value()] = it.key();
+    }
+
+    QVector<DFANode> nodes;
+    QVector<DFAEdge> edges;
+
+    for (int i = 0; i < lalr1.size; i++) {
+        DFANode node;
+        node.id = i;
+        node.isStart = (i == 0);
+        node.isAccept = false;
+
+        if (revLALR1.contains(i)) {
+            const State& state = revLALR1[i];
+            for (const auto& item : state.st) {
+                QString desc = "[" + item.name + " → ";
+                for (int p = 0; p < item.rule.size(); p++) {
+                    if (p == item.pos) desc += "·";
+                    desc += item.rule[p] + " ";
+                }
+                if (item.pos == item.rule.size()) desc += "·";
+                desc = desc.trimmed();
+                desc += ", ";
+                QStringList lookaheads = item.next.values();
+                std::sort(lookaheads.begin(), lookaheads.end());
+                desc += lookaheads.join("/");
+                desc += "]";
+                node.items.append(desc);
+
+                bool isReduce = (item.pos == item.rule.size()) ||
+                    (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                if (isReduce) node.isAccept = true;
+            }
+        }
+        std::sort(node.items.begin(), node.items.end());
+        nodes.append(node);
+    }
+
+    for (auto it = lalr1.changeHash.constBegin(); it != lalr1.changeHash.constEnd(); ++it) {
+        int fromId = it.key();
+        for (auto jt = it.value().constBegin(); jt != it.value().constEnd(); ++jt) {
+            DFAEdge edge;
+            edge.from = fromId;
+            edge.to = jt.value();
+            edge.symbol = jt.key();
+            edges.append(edge);
+        }
+    }
+
+    lalr1GraphWidget->setDFA(nodes, edges);
 }

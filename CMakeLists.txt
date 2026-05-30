@@ -14,6 +14,8 @@ qt_add_executable(LALR
     src/mainwindow.ui
     src/toastmanager.h
     src/toastmanager.cpp
+    src/dfagraphwidget.h
+    src/dfagraphwidget.cpp
     src/settingsdialog.h
     src/settingsdialog.cpp
 

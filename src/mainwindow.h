@@ -9,6 +9,7 @@
 
 #include "lalr.h"
 #include "toastmanager.h"
+#include "dfagraphwidget.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -27,6 +28,11 @@ private:
 
     //消息提示界面
     ToastManager* toastManager;
+
+    // DFA 图形控件
+    DFAGraphWidget* lr0GraphWidget;
+    DFAGraphWidget* lr1GraphWidget;
+    DFAGraphWidget* lalr1GraphWidget;
 
     // 起始符
     QString startString;
@@ -52,6 +58,11 @@ private:
 
     // 判断SLR(1)
     QString checkSLR1(const LALR& lr0dfa);
+
+    // 辅助：从 LR(0) DFA 数据构建图形节点和边
+    void buildLR0Graph(const LALR& lr0dfa);
+    void buildLR1Graph(const LALR& lr1);
+    void buildLALR1Graph(const LALR& lalr1);
 };
 
 #endif // MAINWINDOW_H

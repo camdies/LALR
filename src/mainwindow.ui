@@ -222,22 +222,87 @@
 									</attribute>
 									<layout class="QVBoxLayout" name="vl_lr0">
 										<item>
-											<widget class="QLabel" name="lr0Label">
-												<property name="font">
-													<font>
-														<pointsize>12</pointsize>
-													</font>
-												</property>
-												<property name="text">
-													<string>LR(0)DFA表格</string>
-												</property>
-												<property name="alignment">
-													<set>Qt::AlignCenter</set>
-												</property>
-											</widget>
+											<layout class="QHBoxLayout" name="lr0TopBar">
+												<item>
+													<widget class="QLabel" name="lr0Label">
+														<property name="font">
+															<font>
+																<pointsize>12</pointsize>
+															</font>
+														</property>
+														<property name="text">
+															<string>LR(0)DFA</string>
+														</property>
+														<property name="alignment">
+															<set>Qt::AlignVCenter|Qt::AlignLeft</set>
+														</property>
+													</widget>
+												</item>
+												<item>
+													<spacer name="lr0TopSpacer">
+														<property name="orientation">
+															<enum>Qt::Horizontal</enum>
+														</property>
+													</spacer>
+												</item>
+												<item>
+													<widget class="QPushButton" name="lr0SwitchButton">
+														<property name="text">
+															<string>切换到图形视图</string>
+														</property>
+														<property name="maximumSize">
+															<size>
+																<width>140</width>
+																<height>28</height>
+															</size>
+														</property>
+													</widget>
+												</item>
+											</layout>
 										</item>
 										<item>
-											<widget class="QTableWidget" name="lr0TableWidget"/>
+											<widget class="QStackedWidget" name="lr0StackedWidget">
+												<property name="currentIndex">
+													<number>0</number>
+												</property>
+												<!-- 页面0：表格 -->
+												<widget class="QWidget" name="lr0TablePage">
+													<layout class="QVBoxLayout" name="lr0TableLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+														<item>
+															<widget class="QTableWidget" name="lr0TableWidget"/>
+														</item>
+													</layout>
+												</widget>
+												<!-- 页面1：图形（占位，代码中动态添加） -->
+												<widget class="QWidget" name="lr0GraphPage">
+													<layout class="QVBoxLayout" name="lr0GraphLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+													</layout>
+												</widget>
+											</widget>
 										</item>
 									</layout>
 								</widget>
@@ -294,22 +359,85 @@
 									</attribute>
 									<layout class="QVBoxLayout" name="vl_lr1">
 										<item>
-											<widget class="QLabel" name="lr1Label">
-												<property name="font">
-													<font>
-														<pointsize>12</pointsize>
-													</font>
-												</property>
-												<property name="text">
-													<string>LR(1)DFA表格</string>
-												</property>
-												<property name="alignment">
-													<set>Qt::AlignCenter</set>
-												</property>
-											</widget>
+											<layout class="QHBoxLayout" name="lr1TopBar">
+												<item>
+													<widget class="QLabel" name="lr1Label">
+														<property name="font">
+															<font>
+																<pointsize>12</pointsize>
+															</font>
+														</property>
+														<property name="text">
+															<string>LR(1)DFA</string>
+														</property>
+														<property name="alignment">
+															<set>Qt::AlignVCenter|Qt::AlignLeft</set>
+														</property>
+													</widget>
+												</item>
+												<item>
+													<spacer name="lr1TopSpacer">
+														<property name="orientation">
+															<enum>Qt::Horizontal</enum>
+														</property>
+													</spacer>
+												</item>
+												<item>
+													<widget class="QPushButton" name="lr1SwitchButton">
+														<property name="text">
+															<string>切换到图形视图</string>
+														</property>
+														<property name="maximumSize">
+															<size>
+																<width>140</width>
+																<height>28</height>
+															</size>
+														</property>
+													</widget>
+												</item>
+											</layout>
 										</item>
 										<item>
-											<widget class="QTableWidget" name="lrTableWidget"/>
+											<widget class="QStackedWidget" name="lr1StackedWidget">
+												<property name="currentIndex">
+													<number>0</number>
+												</property>
+												<widget class="QWidget" name="lr1TablePage">
+													<layout class="QVBoxLayout" name="lr1TableLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+														<item>
+															<widget class="QTableWidget" name="lrTableWidget"/>
+														</item>
+													</layout>
+												</widget>
+												<widget class="QWidget" name="lr1GraphPage">
+													<layout class="QVBoxLayout" name="lr1GraphLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+													</layout>
+												</widget>
+											</widget>
 										</item>
 									</layout>
 								</widget>
@@ -319,22 +447,85 @@
 									</attribute>
 									<layout class="QVBoxLayout" name="vl_lalr1">
 										<item>
-											<widget class="QLabel" name="lalrLabel">
-												<property name="font">
-													<font>
-														<pointsize>12</pointsize>
-													</font>
-												</property>
-												<property name="text">
-													<string>LALR(1)DFA表格</string>
-												</property>
-												<property name="alignment">
-													<set>Qt::AlignCenter</set>
-												</property>
-											</widget>
+											<layout class="QHBoxLayout" name="lalr1TopBar">
+												<item>
+													<widget class="QLabel" name="lalrLabel">
+														<property name="font">
+															<font>
+																<pointsize>12</pointsize>
+															</font>
+														</property>
+														<property name="text">
+															<string>LALR(1)DFA</string>
+														</property>
+														<property name="alignment">
+															<set>Qt::AlignVCenter|Qt::AlignLeft</set>
+														</property>
+													</widget>
+												</item>
+												<item>
+													<spacer name="lalr1TopSpacer">
+														<property name="orientation">
+															<enum>Qt::Horizontal</enum>
+														</property>
+													</spacer>
+												</item>
+												<item>
+													<widget class="QPushButton" name="lalr1SwitchButton">
+														<property name="text">
+															<string>切换到图形视图</string>
+														</property>
+														<property name="maximumSize">
+															<size>
+																<width>140</width>
+																<height>28</height>
+															</size>
+														</property>
+													</widget>
+												</item>
+											</layout>
 										</item>
 										<item>
-											<widget class="QTableWidget" name="lalrTableWidget"/>
+											<widget class="QStackedWidget" name="lalr1StackedWidget">
+												<property name="currentIndex">
+													<number>0</number>
+												</property>
+												<widget class="QWidget" name="lalr1TablePage">
+													<layout class="QVBoxLayout" name="lalr1TableLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+														<item>
+															<widget class="QTableWidget" name="lalrTableWidget"/>
+														</item>
+													</layout>
+												</widget>
+												<widget class="QWidget" name="lalr1GraphPage">
+													<layout class="QVBoxLayout" name="lalr1GraphLayout">
+														<property name="leftMargin">
+															<number>0</number>
+														</property>
+														<property name="topMargin">
+															<number>0</number>
+														</property>
+														<property name="rightMargin">
+															<number>0</number>
+														</property>
+														<property name="bottomMargin">
+															<number>0</number>
+														</property>
+													</layout>
+												</widget>
+											</widget>
 										</item>
 									</layout>
 								</widget>
