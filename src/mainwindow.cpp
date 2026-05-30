@@ -18,6 +18,8 @@
 #include <functional>
 
 #include "lalr.h"
+
+// ============ 消息设置按钮 ============
 #include "settingsdialog.h"
 
 // ====================== 辅助：设置 DFA 表格垂直表头颜色 ======================
@@ -151,8 +153,8 @@ MainWindow::MainWindow(QWidget* parent)
             "<p><b>6.</b> 点击「通知设置」可调整右下角消息提示的显示时间和最大数量。</p>"
             "<p><b style='color:red;'>7. 注意: 编译原理的文法定义中 | 是保留字符，不应出现在符号名中。</b></p>"
             "<hr>"
-            "<p style='color:green;'>DFA表中：<b>绿色编号</b> = 初始状态(0)，<b style='color:red;'>红色编号</b> = 末状态</p>"
-            "<p style='color:red;'>DFA表中：<b>绿色编号</b> = 初始状态(0)，<b style='color:red;'>红色编号</b> = 末状态</p>"
+            "<p style='color:green;'>DFA表中：<b>绿色编号</b> = 初始状态(0)</p>"
+            "<p style='color:red;'>DFA表中：<b>红色编号</b> = 末状态</p>"
             "<p>Follow集合中的终结符 <code>$</code> 表示输入结束符。</p>"
         );
         helpBox.setStandardButtons(QMessageBox::Ok);
@@ -285,9 +287,6 @@ MainWindow::MainWindow(QWidget* parent)
                 }
             }
         }
-
-        // -------- 获取起始符 --------
-        startString = nonFinalizers[0];
 
         // -------- 消除直接左递归 --------
         int len = nonFinalizers.size();
@@ -496,6 +495,53 @@ MainWindow::MainWindow(QWidget* parent)
             lr0dfa.buildLR0(lr0FirstState, grammars, nonFinalizers);
         }
 
+        // ======== 判断 LR(0) 冲突 ========
+        bool isLR0 = true;
+        QString lr0ConflictMsg;
+        {
+            QHash<int, LR0State> revLR0;
+            for (auto it = lr0dfa.lr0StateHash.constBegin(); it != lr0dfa.lr0StateHash.constEnd(); ++it) {
+                revLR0[it.value()] = it.key();
+            }
+            QStringList lr0Conflicts;
+            for (int i = 0; i < lr0dfa.lr0size; i++) {
+                if (!revLR0.contains(i)) continue;
+                const LR0State& state = revLR0[i];
+
+                int reduceCount = 0;
+                bool hasShift = false;
+                QStringList reduceNames;
+
+                for (const auto& item : state.st) {
+                    bool isReduce = (item.pos == item.rule.size()) ||
+                        (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                    if (isReduce) {
+                        reduceCount++;
+                        reduceNames.append(item.name + " -> " + item.rule.join(" "));
+                    }
+                    else {
+                        hasShift = true;
+                    }
+                }
+
+                if (reduceCount > 1) {
+                    lr0Conflicts.append(QString("状态I%1: 归约-归约冲突 (多个归约项目: %2)")
+                        .arg(i).arg(reduceNames.join("; ")));
+                }
+                if (reduceCount > 0 && hasShift) {
+                    lr0Conflicts.append(QString("状态I%1: 移进-归约冲突")
+                        .arg(i));
+                }
+            }
+            if (!lr0Conflicts.isEmpty()) {
+                isLR0 = false;
+                lr0ConflictMsg = "<b style='color:red;'>该文法不是 LR(0) 文法</b><br>原因:<br>";
+                for (const auto& c : lr0Conflicts) {
+                    lr0ConflictMsg += "• " + c + "<br>";
+                }
+            }
+        }
+
         // LR(0) DFA 可视化
         {
             QSet<QString> lr0ChangeSymbols;
@@ -551,11 +597,27 @@ MainWindow::MainWindow(QWidget* parent)
             ui->lr0TableWidget->resizeColumnsToContents();
         }
 
+        // ======== 判断 SLR(1) — 写入独立页签 ========
+        {
+            QString slr1Result = checkSLR1(lr0dfa);
+            // 如果不是LR(0)，在SLR(1)页签前面加上LR(0)的冲突信息
+            QString fullResult;
+            if (!isLR0) {
+                fullResult = lr0ConflictMsg + "<hr>" + slr1Result;
+            }
+            else {
+                fullResult = "<b style='color:green;'>该文法是 LR(0) 文法</b><hr>" + slr1Result;
+            }
+            ui->slr1DetailLabel->setText(fullResult);
+        }
+        /*
         // ======== 判断 SLR(1) ========
         {
             QString slr1Result = checkSLR1(lr0dfa);
             ui->slr1DetailLabel->setText(slr1Result);
         }
+        */
+
 
         // ======== 构建 LR(1) DFA ========
         LALR lr1;
@@ -634,6 +696,8 @@ MainWindow::MainWindow(QWidget* parent)
         // ======== 构建 LALR(1) DFA ========
         LALR lalr1;
         lalr1.buildLALR1(lr1);
+
+
 
         // LALR(1) DFA 可视化 - 样式
         {
