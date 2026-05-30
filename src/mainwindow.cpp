@@ -161,8 +161,8 @@ MainWindow::MainWindow(QWidget* parent)
         helpBox.exec();
         });
 
-// 在构造函数中，helpButton 的 connect 之后添加：
-    connect(ui->settingsButton, &QPushButton::clicked, this, [this]() {
+        // 在构造函数中，helpButton 的 connect 之后添加：
+        connect(ui->settingsButton, &QPushButton::clicked, this, [this]() {
         SettingsDialog dlg(toastManager->duration(), toastManager->maxCount(), this);
         if (dlg.exec() == QDialog::Accepted) {
             toastManager->setDuration(dlg.getDuration());
@@ -170,8 +170,8 @@ MainWindow::MainWindow(QWidget* parent)
         }
         });
 
-    // ============ 打开文法文件 ============
-    connect(ui->openButton, &QPushButton::clicked, this, [this]() {
+        // ============ 打开文法文件 ============
+        connect(ui->openButton, &QPushButton::clicked, this, [this]() {
         QString fileName = QFileDialog::getOpenFileName(this, "选择文法规则文件", "", "文本文件 (*.txt);;所有文件 (*)");
         if (!fileName.isEmpty()) {
             QFile file(fileName);
@@ -183,8 +183,8 @@ MainWindow::MainWindow(QWidget* parent)
         }
         });
 
-    // ============ 保存文法文件 ============
-    connect(ui->saveButton, &QPushButton::clicked, this, [this]() {
+        // ============ 保存文法文件 ============
+        connect(ui->saveButton, &QPushButton::clicked, this, [this]() {
         QString fileName = QFileDialog::getSaveFileName(this, "保存文法规则文件", "grammar.txt", "文本文件 (*.txt);;所有文件 (*)");
         if (fileName.isEmpty()) return;
         QFile file(fileName);
@@ -202,8 +202,8 @@ MainWindow::MainWindow(QWidget* parent)
         }
         });
 
-    // ============ 文法分析 ============
-    connect(ui->analysisButton, &QPushButton::clicked, this, [this]() {
+        // ============ 文法分析 ============
+        connect(ui->analysisButton, &QPushButton::clicked, this, [this]() {
         // 清空
         nonFinalizers.clear();
         grammars.clear();
@@ -247,9 +247,9 @@ MainWindow::MainWindow(QWidget* parent)
         }
 
         // -------- 获取非终结符 --------
-// 修改文法解析部分，在获取非终结符之后、分词之前
-// 先第一遍收集非终结符（不变）
-// 第二遍分词时使用 smartTokenize
+        // 修改文法解析部分，在获取非终结符之后、分词之前
+        // 先第一遍收集非终结符（不变）
+        // 第二遍分词时使用 smartTokenize
         // -------- 第一遍：获取非终结符 --------
         for (const auto& grammar : grammarList) {
             QStringList wordList = grammar.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
@@ -697,7 +697,65 @@ MainWindow::MainWindow(QWidget* parent)
         LALR lalr1;
         lalr1.buildLALR1(lr1);
 
+        // ======== 判断 LALR(1) 冲突（先判断，后决定是否显示）========
+        bool isLALR1 = true;
+        QString lalr1ConflictMsg;
+        {
+            QHash<int, State> revLALR1;
+            for (auto it = lalr1.stateHash.constBegin(); it != lalr1.stateHash.constEnd(); ++it) {
+                revLALR1[it.value()] = it.key();
+            }
+            bool hasReduceReduce = false;
+            bool hasShiftReduce = false;
+            QStringList conflictDetails;
 
+            for (int i = 0; i < lalr1.size; i++) {
+                if (!revLALR1.contains(i)) continue;
+                const State& state = revLALR1[i];
+                QSet<QString> reduceSymbols;
+                QStringList reduceConflictItems;
+
+                for (const auto& item : state.st) {
+                    if (item.pos == item.rule.size() || (item.rule.size() == 1 && item.rule[0] == "#")) {
+                        for (const auto& n : item.next) {
+                            if (reduceSymbols.contains(n)) {
+                                hasReduceReduce = true;
+                                conflictDetails.append(QString("状态%1: 归约-归约冲突，向前看符号'%2'对应多个归约规则")
+                                    .arg(i).arg(n));
+                            }
+                            reduceSymbols.insert(n);
+                        }
+                    }
+                }
+                QSet<QString> shiftSymbols;
+                for (const auto& item : state.st) {
+                    if (item.pos < item.rule.size() && !(item.rule.size() == 1 && item.rule[0] == "#")) {
+                        shiftSymbols.insert(item.rule[item.pos]);
+                    }
+                }
+                QSet<QString> srConflict = shiftSymbols;
+                srConflict.intersect(reduceSymbols);
+                if (!srConflict.isEmpty()) {
+                    hasShiftReduce = true;
+                    conflictDetails.append(QString("状态%1: 移进-归约冲突，冲突符号: {%2}")
+                        .arg(i).arg(srConflict.values().join(", ")));
+                }
+            }
+
+            if (hasReduceReduce) {
+                isLALR1 = false;
+                lalr1ConflictMsg = "<b style='color:red;'>该文法不是 LALR(1) 文法</b><br>"
+                    "<b>存在归约-归约冲突:</b><br>";
+                for (const auto& d : conflictDetails) {
+                    lalr1ConflictMsg += "• " + d + "<br>";
+                }
+            }
+            else if (hasShiftReduce) {
+                // 移进-归约冲突可以通过优先移进解决，仍然显示表格但给出警告
+                lalr1ConflictMsg = ""; // 允许继续
+                toastManager->showToast("警告: 该文法在 LALR(1) 中出现了移进-规约冲突。后续将优先移进来解决二义性。", false);
+            }
+        }
 
         // LALR(1) DFA 可视化 - 样式
         {
@@ -757,175 +815,146 @@ MainWindow::MainWindow(QWidget* parent)
             ui->lalrTableWidget->resizeColumnsToContents();
         }
 
-        // ======== 判断 LALR(1) 冲突 ========
-        {
-            QHash<int, State> revLALR1;
-            for (auto it = lalr1.stateHash.constBegin(); it != lalr1.stateHash.constEnd(); ++it) {
-                revLALR1[it.value()] = it.key();
-            }
-            bool hasReduceReduce = false;
-            bool hasShiftReduce = false;
-            for (int i = 0; i < lalr1.size; i++) {
-                if (!revLALR1.contains(i)) continue;
-                const State& state = revLALR1[i];
-                QSet<QString> reduceSymbols;
-                for (const auto& item : state.st) {
-                    if (item.pos == item.rule.size() || (item.rule.size() == 1 && item.rule[0] == "#")) {
-                        for (const auto& n : item.next) {
-                            if (reduceSymbols.contains(n)) {
-                                hasReduceReduce = true;
-                            }
-                            reduceSymbols.insert(n);
+        // ======== 构建 LALR(1) 分析表 — 只有isLALR1==true时才构建 ========
+        if (isLALR1) {
+            {
+                QSet<QString> terminalSet;
+                for (int i = 0; i < lalr1.size; i++) {
+                    if (!lalr1.changeHash.contains(i)) continue;
+                    for (auto it = lalr1.changeHash[i].constBegin(); it != lalr1.changeHash[i].constEnd(); ++it) {
+                        if (!nonFinalizers.contains(it.key())) {
+                            terminalSet.insert(it.key());
                         }
                     }
                 }
-                QSet<QString> shiftSymbols;
-                for (const auto& item : state.st) {
-                    if (item.pos < item.rule.size() && !(item.rule.size() == 1 && item.rule[0] == "#")) {
-                        shiftSymbols.insert(item.rule[item.pos]);
-                    }
+                QStringList terminalList = terminalSet.values();
+                std::sort(terminalList.begin(), terminalList.end());
+                terminalList.append("$");
+
+                QStringList nonTermList;
+                for (const auto& nf : nonFinalizers) {
+                    if (nf != startString) nonTermList.append(nf);
                 }
-                if (!shiftSymbols.intersect(reduceSymbols).isEmpty()) {
-                    hasShiftReduce = true;
+                std::sort(nonTermList.begin(), nonTermList.end());
+
+                QStringList header;
+                header.append(terminalList);
+                header.append(nonTermList);
+
+                ui->lalrAnalysisTableWidget->setColumnCount(header.size());
+                ui->lalrAnalysisTableWidget->setHorizontalHeaderLabels(header);
+                ui->lalrAnalysisTableWidget->setRowCount(lalr1.size);
+                ui->lalrAnalysisTableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+                QHash<QString, int> headerHash;
+                for (int i = 0; i < header.size(); i++) {
+                    headerHash[header[i]] = i;
                 }
-            }
-            if (hasReduceReduce) {
-                //QMessageBox::warning(this, "警告", "该文法在 LALR(1) 中出现了规约-规约冲突，不是 LALR(1) 文法");
-                toastManager->showToast("警告: 该文法在 LALR(1) 中出现了规约-规约冲突,不是 LALR(1) 文法!", false);
-                return;
-            }
-            if (hasShiftReduce) {
-                //QMessageBox::warning(this, "警告", "该文法在 LALR(1) 中出现了移进-规约冲突。后续将优先移进来解决二义性。");
-                toastManager->showToast("警告: 该文法在 LALR(1) 中出现了移进-规约冲突。后续将优先移进来解决二义性。", false);
-            }
-        }
 
-        // ======== 构建 LALR(1) 分析表 ========
-        {
-            QSet<QString> terminalSet;
-            for (int i = 0; i < lalr1.size; i++) {
-                if (!lalr1.changeHash.contains(i)) continue;
-                for (auto it = lalr1.changeHash[i].constBegin(); it != lalr1.changeHash[i].constEnd(); ++it) {
-                    if (!nonFinalizers.contains(it.key())) {
-                        terminalSet.insert(it.key());
-                    }
+                QHash<int, State> revHash;
+                for (auto it = lalr1.stateHash.constBegin(); it != lalr1.stateHash.constEnd(); ++it) {
+                    revHash[it.value()] = it.key();
                 }
-            }
-            QStringList terminalList = terminalSet.values();
-            std::sort(terminalList.begin(), terminalList.end());
-            terminalList.append("$");
 
-            QStringList nonTermList;
-            for (const auto& nf : nonFinalizers) {
-                if (nf != startString) nonTermList.append(nf);
-            }
-            std::sort(nonTermList.begin(), nonTermList.end());
+                setDFAVerticalHeaders(ui->lalrAnalysisTableWidget, lalr1.size);
 
-            QStringList header;
-            header.append(terminalList);
-            header.append(nonTermList);
+                // 先填规约/接受
+                for (int i = 0; i < lalr1.size; i++) {
+                    if (!revHash.contains(i)) continue;
+                    const State& state = revHash[i];
+                    for (const Item& item : state.st) {
+                        bool isReduce = (item.pos == item.rule.size()) ||
+                            (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                        if (!isReduce) continue;
 
-            ui->lalrAnalysisTableWidget->setColumnCount(header.size());
-            ui->lalrAnalysisTableWidget->setHorizontalHeaderLabels(header);
-            ui->lalrAnalysisTableWidget->setRowCount(lalr1.size);
-            ui->lalrAnalysisTableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-            QHash<QString, int> headerHash;
-            for (int i = 0; i < header.size(); i++) {
-                headerHash[header[i]] = i;
-            }
-
-            QHash<int, State> revHash;
-            for (auto it = lalr1.stateHash.constBegin(); it != lalr1.stateHash.constEnd(); ++it) {
-                revHash[it.value()] = it.key();
-            }
-
-            setDFAVerticalHeaders(ui->lalrAnalysisTableWidget, lalr1.size);
-
-            // 先填规约/接受
-            for (int i = 0; i < lalr1.size; i++) {
-                if (!revHash.contains(i)) continue;
-                const State& state = revHash[i];
-                for (const Item& item : state.st) {
-                    bool isReduce = (item.pos == item.rule.size()) ||
-                        (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
-                    if (!isReduce) continue;
-
-                    if (item.name == startString) {
-                        for (const auto& next : item.next) {
-                            if (next == "$" && headerHash.contains("$")) {
-                                LALR1TableItem ti;
-                                ti.kind = 4;
-                                ti.idx = 0;
-                                LALR1_table[i].insert(next, ti);
-                                ui->lalrAnalysisTableWidget->setItem(i, headerHash["$"],
-                                    new QTableWidgetItem("acc"));
-                            }
-                        }
-                    }
-                    else {
-                        for (const auto& next : item.next) {
-                            if (!headerHash.contains(next)) continue;
-                            int ruleIdx = -1;
-                            for (int r = 0; r < recursion.size(); r++) {
-                                if (Item::haveSameCore(recursion[r], item)) {
-                                    ruleIdx = r;
-                                    break;
+                        if (item.name == startString) {
+                            for (const auto& next : item.next) {
+                                if (next == "$" && headerHash.contains("$")) {
+                                    LALR1TableItem ti;
+                                    ti.kind = 4;
+                                    ti.idx = 0;
+                                    LALR1_table[i].insert(next, ti);
+                                    ui->lalrAnalysisTableWidget->setItem(i, headerHash["$"],
+                                        new QTableWidgetItem("acc"));
                                 }
                             }
-                            if (ruleIdx < 0) {
-                                recursion.push_back(item);
-                                ruleIdx = recursion.size() - 1;
-                            }
-                            LALR1TableItem ti;
-                            ti.kind = 2;
-                            ti.idx = ruleIdx;
-                            if (!LALR1_table[i].contains(next)) {
-                                LALR1_table[i].insert(next, ti);
-                                ui->lalrAnalysisTableWidget->setItem(i, headerHash[next],
-                                    new QTableWidgetItem("r" + QString::number(ruleIdx)));
+                        }
+                        else {
+                            for (const auto& next : item.next) {
+                                if (!headerHash.contains(next)) continue;
+                                int ruleIdx = -1;
+                                for (int r = 0; r < recursion.size(); r++) {
+                                    if (Item::haveSameCore(recursion[r], item)) {
+                                        ruleIdx = r;
+                                        break;
+                                    }
+                                }
+                                if (ruleIdx < 0) {
+                                    recursion.push_back(item);
+                                    ruleIdx = recursion.size() - 1;
+                                }
+                                LALR1TableItem ti;
+                                ti.kind = 2;
+                                ti.idx = ruleIdx;
+                                if (!LALR1_table[i].contains(next)) {
+                                    LALR1_table[i].insert(next, ti);
+                                    ui->lalrAnalysisTableWidget->setItem(i, headerHash[next],
+                                        new QTableWidgetItem("r" + QString::number(ruleIdx)));
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // 再填移进（移进优先覆盖规约）
-            for (int i = 0; i < lalr1.size; i++) {
-                if (!lalr1.changeHash.contains(i)) continue;
-                for (auto it = lalr1.changeHash[i].constBegin(); it != lalr1.changeHash[i].constEnd(); ++it) {
-                    const QString& sym = it.key();
-                    int target = it.value();
-                    if (!headerHash.contains(sym)) continue;
-                    if (nonFinalizers.contains(sym)) {
-                        LALR1TableItem ti;
-                        ti.kind = 3;
-                        ti.idx = target;
-                        LALR1_table[i].insert(sym, ti);
-                        ui->lalrAnalysisTableWidget->setItem(i, headerHash[sym],
-                            new QTableWidgetItem(QString::number(target)));
-                    }
-                    else {
-                        LALR1TableItem ti;
-                        ti.kind = 1;
-                        ti.idx = target;
-                        LALR1_table[i].insert(sym, ti);
-                        ui->lalrAnalysisTableWidget->setItem(i, headerHash[sym],
-                            new QTableWidgetItem("s" + QString::number(target)));
+                // 再填移进（移进优先覆盖规约）
+                for (int i = 0; i < lalr1.size; i++) {
+                    if (!lalr1.changeHash.contains(i)) continue;
+                    for (auto it = lalr1.changeHash[i].constBegin(); it != lalr1.changeHash[i].constEnd(); ++it) {
+                        const QString& sym = it.key();
+                        int target = it.value();
+                        if (!headerHash.contains(sym)) continue;
+                        if (nonFinalizers.contains(sym)) {
+                            LALR1TableItem ti;
+                            ti.kind = 3;
+                            ti.idx = target;
+                            LALR1_table[i].insert(sym, ti);
+                            ui->lalrAnalysisTableWidget->setItem(i, headerHash[sym],
+                                new QTableWidgetItem(QString::number(target)));
+                        }
+                        else {
+                            LALR1TableItem ti;
+                            ti.kind = 1;
+                            ti.idx = target;
+                            LALR1_table[i].insert(sym, ti);
+                            ui->lalrAnalysisTableWidget->setItem(i, headerHash[sym],
+                                new QTableWidgetItem("s" + QString::number(target)));
+                        }
                     }
                 }
+
+                ui->lalrAnalysisTableWidget->resizeColumnsToContents();
             }
 
-            ui->lalrAnalysisTableWidget->resizeColumnsToContents();
-        }
+            canSentence = true;
 
-        canSentence = true;
+            //QMessageBox::information(this, "提示", "文法分析完成!");
+            toastManager->showToast("提示：提示文法分析完成!", true);
+        } else {
+            // 不构建分析表，在分析表页签显示冲突原因
+            ui->lalrAnalysisTableWidget->setRowCount(1);
+            ui->lalrAnalysisTableWidget->setColumnCount(1);
+            ui->lalrAnalysisTableWidget->setHorizontalHeaderLabels(QStringList() << "分析结果");
+            QTableWidgetItem* item = new QTableWidgetItem("该文法不是LALR(1)文法，无法构建分析表");
+            item->setForeground(QColor(255, 0, 0));
+            ui->lalrAnalysisTableWidget->setItem(0, 0, item);
 
-        //QMessageBox::information(this, "提示", "文法分析完成!");
-        toastManager->showToast("提示：提示文法分析完成!", true);
-    });
+            canSentence = false;
+            toastManager->showToast("警告: 该文法不是 LALR(1) 文法，存在归约-归约冲突，无法构建分析表!", false);
+            }
+        
+        });
 
-    // ============ 句子分析 - 按照图片3的样式：分析栈（状态+符号交替）和符号栈（剩余输入） ============
+    // ============ 句子分析 - 分析栈（状态+符号交替）和符号栈（剩余输入） ============
     connect(ui->sentenceButton, &QPushButton::clicked, this, [this]() {
         if (!canSentence) {
             //QMessageBox::warning(this, "警告", "请先进行文法分析!");
