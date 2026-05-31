@@ -43,6 +43,9 @@ static QString normalizeGrammarLine(const QString& line)
     QString result = line.trimmed();
     if (result.isEmpty()) return result;
 
+    result.replace("ε", "#");
+    result.replace("epsilon", "#");
+
     // 第一步：在 "->" 两侧确保有空格
     result.replace("->", " -> ");
 
@@ -199,6 +202,12 @@ MainWindow::MainWindow(QWidget* parent)
             "<p><b>5.</b> 输入句子后点击「分析句子」查看分析过程。</p>"
             "<p><b>6.</b> 点击「通知设置」可调整右下角消息提示的显示时间和最大数量。</p>"
             "<p><b style='color:red;'>7. 注意: 编译原理的文法定义中 | 是保留字符，不应出现在符号名中。</b></p>"
+            "<hr>"
+			"<p><b>LR(0)/LR(1)/LALR(1)分析表说明：</b></p>"
+            "<p>kind = 1: 移进 (shift) → 填入 s目标状态 </p>"
+            "<p>kind = 2: 规约 (reduce) → 填入 r产生式编号 </p>"
+            "<p>kind = 3: GOTO       → 填入目标状态编号（纯数字） </p>"
+            "<p>kind = 4: 接受 (accept) → 填入 acc </p>"
             "<hr>"
             "<p style='color:green;'>DFA表中：<b>绿色编号</b> = 初始状态(0)</p>"
             "<p style='color:red;'>DFA表中：<b>红色编号</b> = 末状态</p>"
@@ -532,13 +541,28 @@ MainWindow::MainWindow(QWidget* parent)
         // ======== 扩充文法 ========
         firstSet["$"] = QSet<QString>({ "$" });
         {
-            QString newStart = startString + "_new";
-            while (nonFinalizers.contains(newStart)) newStart += "_";
-            grammars[newStart].insert(QStringList() << startString);
-            nonFinalizers.prepend(newStart);
-            firstSet[newStart] = firstSet[startString];
-            followSet[newStart].insert("$");
-            startString = newStart;
+            // 检测是否已经是扩充文法（起始符只有唯一一条产生式且右侧只有一个非终结符）
+            bool alreadyAugmented = false;
+            if (grammars.contains(startString) && grammars[startString].size() == 1) {
+                const QStringList& onlyRule = *grammars[startString].begin();
+                if (onlyRule.size() == 1 && nonFinalizers.contains(onlyRule[0])) {
+                    // 起始符形如 A' -> A，认为已扩充，无需再扩充
+                    alreadyAugmented = true;
+                    followSet[startString].insert("$");
+                }
+            }
+
+            if (!alreadyAugmented) {
+                // 使用 A' 作为新起始符名称
+                QString newStart = startString + "'";
+                // 若 A' 已存在则继续加 '
+                while (nonFinalizers.contains(newStart)) newStart += "'";
+                grammars[newStart].insert(QStringList() << startString);
+                nonFinalizers.prepend(newStart);
+                firstSet[newStart] = firstSet[startString];
+                followSet[newStart].insert("$");
+                startString = newStart;
+            }
         }
 
         // ======== 构建 LR(0) DFA ========
@@ -636,12 +660,22 @@ MainWindow::MainWindow(QWidget* parent)
                         desc += "\n";
                     }
                 }
+
+                bool isAcceptState = false;
+                if (revLR0.contains(i)) {
+                    for (const auto& item : revLR0[i].st) {
+                        bool isReduce = (item.pos == item.rule.size()) ||
+                            (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                        if (isReduce) { isAcceptState = true; break; }
+                    }
+                }
+
                 auto* vhItem = new QTableWidgetItem(desc);
                 if (i == 0) {
                     vhItem->setForeground(QColor(0, 160, 0));     // 绿色=初始状态
                 }
-                else if (i == lr0dfa.lr0size - 1) {
-                    vhItem->setForeground(QColor(255, 0, 0));      // 红色=末状态
+                else if (isAcceptState) {
+                    vhItem->setForeground(QColor(255, 0, 0));      // 红色=终结状态
                 }
                 ui->lr0TableWidget->setVerticalHeaderItem(i, vhItem);
 
@@ -734,11 +768,21 @@ MainWindow::MainWindow(QWidget* parent)
                         desc += "\n";
                     }
                 }
+
+                bool isAcceptState = false;
+                if (revLR1.contains(i)) {
+                    for (const auto& item : revLR1[i].st) {
+                        bool isReduce = (item.pos == item.rule.size()) ||
+                            (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                        if (isReduce) { isAcceptState = true; break; }
+                    }
+                }
+
                 auto* vhItem = new QTableWidgetItem(desc);
                 if (i == 0) {
                     vhItem->setForeground(QColor(0, 160, 0));
                 }
-                else if (i == lr1.size - 1) {
+                else if (isAcceptState) {
                     vhItem->setForeground(QColor(255, 0, 0));
                 }
                 ui->lrTableWidget->setVerticalHeaderItem(i, vhItem);
@@ -858,11 +902,20 @@ MainWindow::MainWindow(QWidget* parent)
                         desc += "\n";
                     }
                 }
+                bool isAcceptState = false;
+                if (revLALR1.contains(i)) {
+                    for (const auto& item : revLALR1[i].st) {
+                        bool isReduce = (item.pos == item.rule.size()) ||
+                            (item.rule.size() == 1 && item.rule[0] == "#" && item.pos == 0);
+                        if (isReduce) { isAcceptState = true; break; }
+                    }
+                }
+
                 auto* vhItem = new QTableWidgetItem(desc);
                 if (i == 0) {
                     vhItem->setForeground(QColor(0, 160, 0));
                 }
-                else if (i == lalr1.size - 1) {
+                else if (isAcceptState) {
                     vhItem->setForeground(QColor(255, 0, 0));
                 }
                 ui->lalrTableWidget->setVerticalHeaderItem(i, vhItem);
